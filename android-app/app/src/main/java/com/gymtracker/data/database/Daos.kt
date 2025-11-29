@@ -6,10 +6,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MuscleGroupDao {
-    @Query("SELECT * FROM muscle_groups ORDER BY parentId NULLS FIRST, name")
+    // Исправлено: заменено "NULLS FIRST" на CASE-выражение для совместимости
+    @Query("SELECT * FROM muscle_groups ORDER BY CASE WHEN parentId IS NULL THEN 0 ELSE 1 END, parentId, name")
     fun getAllFlow(): Flow<List<MuscleGroup>>
 
-    @Query("SELECT * FROM muscle_groups ORDER BY parentId NULLS FIRST, name")
+    // Исправлено: заменено "NULLS FIRST" на CASE-выражение для совместимости
+    @Query("SELECT * FROM muscle_groups ORDER BY CASE WHEN parentId IS NULL THEN 0 ELSE 1 END, parentId, name")
     suspend fun getAll(): List<MuscleGroup>
 
     @Query("SELECT * FROM muscle_groups WHERE id = :id")
