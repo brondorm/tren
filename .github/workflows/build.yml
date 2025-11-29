@@ -2,16 +2,18 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
-    tags:
-      - 'v*'
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./android-app
     
     steps:
     - name: Checkout code
@@ -30,36 +32,8 @@ jobs:
     - name: Build Debug APK
       run: ./gradlew assembleDebug
 
-    - name: Build Release APK
-      run: ./gradlew assembleRelease
-
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
-
-    - name: Upload Release APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-release
-        path: app/build/outputs/apk/release/app-release-unsigned.apk
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    
-    steps:
-    - name: Download Release APK
-      uses: actions/download-artifact@v4
-      with:
-        name: app-release
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: app-release-unsigned.apk
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        path: android-app/app/build/outputs/apk/debug/app-debug.apk
