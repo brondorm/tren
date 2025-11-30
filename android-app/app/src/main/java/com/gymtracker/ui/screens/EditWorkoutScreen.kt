@@ -48,13 +48,16 @@ fun EditWorkoutScreen(
     // Состояние тренировки
     val entries = remember { mutableStateListOf<ExerciseEntryData>() }
     var showExerciseDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
+    var workoutId by remember { mutableStateOf<Long?>(null) }
     
     // Загружаем существующую тренировку
     LaunchedEffect(date) {
         val workout = repository.getWorkoutByDate(date)
         if (workout != null) {
+            workoutId = workout.id
             val fullWorkout = repository.getFullWorkout(workout.id)
             fullWorkout?.entries?.forEach { entry ->
                 if (entry.exercise != null) {
@@ -86,6 +89,15 @@ fun EditWorkoutScreen(
                     }
                 },
                 actions = {
+                    if (workoutId != null) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                "Удалить тренировку",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                     if (isSaving) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
@@ -199,6 +211,36 @@ fun EditWorkoutScreen(
                     sets = mutableStateListOf(SetData(setNumber = 1))
                 )
                 entries.add(newEntry)
+            }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Удалить тренировку?") },
+            text = { Text("Это действие нельзя отменить. Все данные этой тренировки будут удалены.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            workoutId?.let { id ->
+                                repository.deleteWorkout(
+                                    repository.getWorkoutById(id)!!
+                                )
+                            }
+                            showDeleteDialog = false
+                            onNavigateBack()
+                        }
+                    }
+                ) {
+                    Text("Удалить", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Отмена")
+                }
             }
         )
     }
