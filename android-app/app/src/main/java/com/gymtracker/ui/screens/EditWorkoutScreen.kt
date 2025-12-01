@@ -415,14 +415,20 @@ private suspend fun saveWorkout(
                 )
             } else null
         }
-        
+
         if (sets.isNotEmpty()) {
             entry.exercise.id to sets
         } else null
     }
-    
+
     if (dataToSave.isNotEmpty()) {
         repository.saveFullWorkout(date, dataToSave)
+    } else {
+        // Если нет данных для сохранения, удаляем тренировку
+        val workout = repository.getWorkoutByDate(date)
+        if (workout != null) {
+            repository.deleteWorkout(workout)
+        }
     }
 }
 

@@ -309,8 +309,12 @@ fun SettingsScreen(
                     onClick = {
                         scope.launch {
                             isProcessing = true
-                            // Здесь нужно добавить метод очистки в репозиторий
-                            Toast.makeText(context, "Данные очищены", Toast.LENGTH_SHORT).show()
+                            try {
+                                repository.clearAllData()
+                                Toast.makeText(context, "Данные очищены", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
                             isProcessing = false
                             showClearDialog = false
                         }
