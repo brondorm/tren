@@ -98,7 +98,15 @@ class GymRepository(private val database: GymDatabase) {
     suspend fun updateSet(set: ExerciseSet) = database.exerciseSetDao().update(set)
     
     suspend fun deleteSet(set: ExerciseSet) = database.exerciseSetDao().delete(set)
-    
+
+    // ===== Clear All Data =====
+
+    suspend fun clearAllData() {
+        database.workoutDao().deleteAll()
+        database.exerciseDao().deleteAll()
+        database.muscleGroupDao().deleteAll()
+    }
+
     // ===== Statistics =====
     
     suspend fun getWeeklyMuscleStats(): List<MuscleGroupStats> {
