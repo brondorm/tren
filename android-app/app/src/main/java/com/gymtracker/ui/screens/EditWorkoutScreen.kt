@@ -166,7 +166,8 @@ fun EditWorkoutScreen(
                         entry = entry,
                         onRemove = { entries.removeAt(index) },
                         onAddSet = {
-                            entry.sets.add(SetData(setNumber = entry.sets.size + 1))
+                            val previousWeight = entry.sets.lastOrNull()?.weight ?: ""
+                            entry.sets.add(SetData(setNumber = entry.sets.size + 1, weight = previousWeight))
                         },
                         onRemoveSet = { setIndex ->
                             if (entry.sets.size > 1) {
