@@ -131,15 +131,55 @@ class GymRepository(private val database: GymDatabase) {
     suspend fun getMuscleStatsByRange(startDate: String, endDate: String): List<MuscleGroupStats> = 
         database.statsDao().getStatsByMuscleGroup(startDate, endDate)
     
-    suspend fun getWeightProgress(exerciseId: Long): List<WeightProgress> = 
-        database.statsDao().getWeightProgress(exerciseId)
-    
+    /**
+     * Рассчитывает прогресс по упражнению используя формулу Эпли для 1RM
+     * Формула Эпли: 1RM = weight × (1 + reps/30)
+     * За каждый день выбирается лучший подход по расчётному 1RM
+     */
+    suspend fun getWeightProgress(exerciseId: Long): List<WeightProgress> {
+        val setsWithDates = database.statsDao().getExerciseSetsWithDates(exerciseId)
+        return calculateBestSetsByDate(setsWithDates)
+    }
+
     suspend fun getWeightProgressByRange(
-        exerciseId: Long, 
-        startDate: String, 
+        exerciseId: Long,
+        startDate: String,
         endDate: String
-    ): List<WeightProgress> = 
-        database.statsDao().getWeightProgressInRange(exerciseId, startDate, endDate)
+    ): List<WeightProgress> {
+        val setsWithDates = database.statsDao().getExerciseSetsWithDatesInRange(exerciseId, startDate, endDate)
+        return calculateBestSetsByDate(setsWithDates)
+    }
+
+    /**
+     * Группирует подходы по датам и находит лучший по формуле Эпли
+     */
+    private fun calculateBestSetsByDate(sets: List<SetWithDate>): List<WeightProgress> {
+        return sets
+            .groupBy { it.date }
+            .map { (date, daySets) ->
+                val bestSet = daySets.maxByOrNull { calculateEpley1RM(it.weight, it.reps) }!!
+                val estimated1RM = calculateEpley1RM(bestSet.weight, bestSet.reps)
+                val maxWeight = daySets.maxOf { it.weight }
+
+                WeightProgress(
+                    date = date,
+                    maxWeight = maxWeight,
+                    bestWeight = bestSet.weight,
+                    bestReps = bestSet.reps,
+                    estimated1RM = estimated1RM
+                )
+            }
+            .sortedBy { it.date }
+    }
+
+    /**
+     * Формула Эпли для расчёта 1RM (one-rep max)
+     * 1RM = weight × (1 + reps/30)
+     */
+    private fun calculateEpley1RM(weight: Double, reps: Int): Double {
+        if (reps <= 0) return weight
+        return weight * (1.0 + reps.toDouble() / 30.0)
+    }
     
     // ===== Full Workout Data =====
     

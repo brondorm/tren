@@ -152,33 +152,43 @@ fun ProgressScreen(
                     }
                 }
             } else {
-                // Статистика
+                // Статистика по расчётному 1RM (формула Эпли)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer
                     )
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                            .padding(16.dp)
                     ) {
-                        val maxWeight = progress.maxOfOrNull { it.maxWeight } ?: 0.0
-                        val minWeight = progress.minOfOrNull { it.maxWeight } ?: 0.0
-                        val lastWeight = progress.lastOrNull()?.maxWeight ?: 0.0
-                        
-                        StatItem(label = "Макс.", value = "${maxWeight.toInt()} кг")
-                        StatItem(label = "Мин.", value = "${minWeight.toInt()} кг")
-                        StatItem(label = "Последний", value = "${lastWeight.toInt()} кг")
+                        Text(
+                            "Расчётный 1RM (формула Эпли)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            val max1RM = progress.maxOfOrNull { it.estimated1RM } ?: 0.0
+                            val min1RM = progress.minOfOrNull { it.estimated1RM } ?: 0.0
+                            val last1RM = progress.lastOrNull()?.estimated1RM ?: 0.0
+
+                            StatItem(label = "Макс.", value = "${max1RM.toInt()} кг")
+                            StatItem(label = "Мин.", value = "${min1RM.toInt()} кг")
+                            StatItem(label = "Последний", value = "${last1RM.toInt()} кг")
+                        }
                     }
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 Text(
-                    "Динамика веса",
+                    "Динамика 1RM",
                     style = MaterialTheme.typography.titleMedium
                 )
                 
@@ -194,21 +204,46 @@ fun ProgressScreen(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Таблица данных
+                // Таблица данных с лучшими подходами
                 Text(
-                    "История",
+                    "История лучших подходов",
                     style = MaterialTheme.typography.titleMedium
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Card(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+                        // Заголовок таблицы
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "Дата",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Text(
+                                "Подход",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Text(
+                                "1RM",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        val formatter = DateTimeFormatter.ofPattern("dd.MM")
                         progress.takeLast(10).reversed().forEach { entry ->
                             val date = LocalDate.parse(entry.date)
                             Row(
@@ -222,7 +257,11 @@ fun ProgressScreen(
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    "${entry.maxWeight} кг",
+                                    "${entry.bestWeight.toInt()}×${entry.bestReps}",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    "${entry.estimated1RM.toInt()} кг",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -241,22 +280,23 @@ fun WeightProgressChart(
     modifier: Modifier = Modifier
 ) {
     if (progress.isEmpty()) return
-    
+
+    // Используем расчётный 1RM для графика
     val entries = progress.mapIndexed { index, wp ->
-        index.toFloat() to wp.maxWeight.toFloat()
+        index.toFloat() to wp.estimated1RM.toFloat()
     }
-    
+
     val chartEntryModel = entryModelOf(*entries.toTypedArray())
-    
+
     val dateLabels = progress.map { wp ->
         val date = LocalDate.parse(wp.date)
         "${date.dayOfMonth}/${date.monthValue}"
     }
-    
+
     val bottomAxisValueFormatter = AxisValueFormatter<AxisPosition.Horizontal.Bottom> { value, _ ->
         dateLabels.getOrElse(value.toInt()) { "" }
     }
-    
+
     Chart(
         chart = lineChart(),
         model = chartEntryModel,
