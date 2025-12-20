@@ -176,36 +176,40 @@ interface StatsDao {
     suspend fun getStatsByMuscleGroup(startDate: String, endDate: String): List<MuscleGroupStats>
 
     /**
-     * Получает прогресс веса по упражнению
+     * Получает все подходы для упражнения с датами для расчёта прогресса
      */
     @Query("""
-        SELECT w.date, MAX(s.weight) as maxWeight
+        SELECT w.date, s.weight, s.reps
         FROM sets s
         INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
         INNER JOIN workouts w ON we.workoutId = w.id
         WHERE we.exerciseId = :exerciseId
-        GROUP BY w.date
         ORDER BY w.date
     """)
-    suspend fun getWeightProgress(exerciseId: Long): List<WeightProgress>
+    suspend fun getExerciseSetsWithDates(exerciseId: Long): List<SetWithDate>
 
     /**
-     * Получает прогресс веса по упражнению за период
+     * Получает все подходы для упражнения за период с датами
      */
     @Query("""
-        SELECT w.date, MAX(s.weight) as maxWeight
+        SELECT w.date, s.weight, s.reps
         FROM sets s
         INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
         INNER JOIN workouts w ON we.workoutId = w.id
-        WHERE we.exerciseId = :exerciseId 
+        WHERE we.exerciseId = :exerciseId
           AND w.date BETWEEN :startDate AND :endDate
-        GROUP BY w.date
         ORDER BY w.date
     """)
-    suspend fun getWeightProgressInRange(exerciseId: Long, startDate: String, endDate: String): List<WeightProgress>
+    suspend fun getExerciseSetsWithDatesInRange(exerciseId: Long, startDate: String, endDate: String): List<SetWithDate>
 }
 
 // Data classes для результатов запросов
+data class SetWithDate(
+    val date: String,
+    val weight: Double,
+    val reps: Int
+)
+
 data class MuscleGroupStats(
     val muscleGroup: String,
     val totalSets: Int,
@@ -214,5 +218,8 @@ data class MuscleGroupStats(
 
 data class WeightProgress(
     val date: String,
-    val maxWeight: Double
+    val maxWeight: Double,
+    val bestWeight: Double,
+    val bestReps: Int,
+    val estimated1RM: Double
 )
