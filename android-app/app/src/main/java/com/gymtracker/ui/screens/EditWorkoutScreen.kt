@@ -51,11 +51,12 @@ fun EditWorkoutScreen(
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
     
-    // Загружаем существующую тренировку
+    // Загружаем существующую тренировку или позапрошлую (для системы тяни-толкай)
     LaunchedEffect(date) {
-        val workout = repository.getWorkoutByDate(date)
-        if (workout != null) {
-            val fullWorkout = repository.getFullWorkout(workout.id)
+        val existingWorkout = repository.getWorkoutByDate(date)
+        if (existingWorkout != null) {
+            // Редактируем существующую тренировку
+            val fullWorkout = repository.getFullWorkout(existingWorkout.id)
             fullWorkout?.entries?.forEach { entry ->
                 if (entry.exercise != null) {
                     val setDataList = entry.sets.map { set ->
@@ -67,6 +68,25 @@ fun EditWorkoutScreen(
                         )
                     }.toMutableList()
                     entries.add(ExerciseEntryData(entry.exercise, setDataList.toMutableStateList()))
+                }
+            }
+        } else {
+            // Новая тренировка - загружаем позапрошлую (для системы тяни-толкай)
+            val secondPrevWorkout = repository.getSecondPreviousWorkout(date)
+            if (secondPrevWorkout != null) {
+                val fullWorkout = repository.getFullWorkout(secondPrevWorkout.id)
+                fullWorkout?.entries?.forEach { entry ->
+                    if (entry.exercise != null) {
+                        val setDataList = entry.sets.map { set ->
+                            SetData(
+                                setNumber = set.setNumber,
+                                weight = set.weight.toString(),
+                                reps = set.reps.toString(),
+                                note = set.note ?: ""
+                            )
+                        }.toMutableList()
+                        entries.add(ExerciseEntryData(entry.exercise, setDataList.toMutableStateList()))
+                    }
                 }
             }
         }

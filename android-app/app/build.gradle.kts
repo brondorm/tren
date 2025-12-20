@@ -21,8 +21,21 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("gymtracker-release.keystore")
+            storePassword = "gymtracker123"
+            keyAlias = "gymtracker"
+            keyPassword = "gymtracker123"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
