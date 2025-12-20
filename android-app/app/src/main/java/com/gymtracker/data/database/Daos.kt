@@ -95,6 +95,9 @@ interface WorkoutDao {
     @Query("SELECT * FROM workouts WHERE date LIKE :year || '%' ORDER BY date")
     suspend fun getByYear(year: String): List<Workout>
 
+    @Query("SELECT * FROM workouts WHERE date < :beforeDate ORDER BY date DESC LIMIT :limit")
+    suspend fun getPreviousWorkouts(beforeDate: String, limit: Int): List<Workout>
+
     @Insert
     suspend fun insert(workout: Workout): Long
 

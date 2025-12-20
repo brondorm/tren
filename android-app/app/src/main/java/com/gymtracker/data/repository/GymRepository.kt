@@ -71,6 +71,15 @@ class GymRepository(private val database: GymDatabase) {
     suspend fun updateWorkout(workout: Workout) = database.workoutDao().update(workout)
     
     suspend fun deleteWorkout(workout: Workout) = database.workoutDao().delete(workout)
+
+    /**
+     * Получает позапрошлую тренировку (вторую по дате перед указанной)
+     * Используется для системы тяни-толкай, где чередуются типы тренировок
+     */
+    suspend fun getSecondPreviousWorkout(beforeDate: String): Workout? {
+        val previous = database.workoutDao().getPreviousWorkouts(beforeDate, 2)
+        return previous.getOrNull(1) // Индекс 1 = вторая (позапрошлая)
+    }
     
     // ===== Workout Exercises =====
     
