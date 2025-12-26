@@ -161,16 +161,34 @@ interface ExerciseSetDao {
 interface StatsDao {
     /**
      * Получает суммарные подходы по группам мышц за период
+     * Учитывает синергисты как 0.5 подхода
+     * Используется UNION ALL для объединения основных мышц и синергистов
      */
     @Query("""
-        SELECT mg.name as muscleGroup, COUNT(s.id) as totalSets, SUM(s.reps) as totalReps
-        FROM sets s
-        INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
-        INNER JOIN workouts w ON we.workoutId = w.id
-        INNER JOIN exercises e ON we.exerciseId = e.id
-        INNER JOIN muscle_groups mg ON e.muscleGroupId = mg.id
-        WHERE w.date BETWEEN :startDate AND :endDate
-        GROUP BY mg.id
+        SELECT muscleGroup, SUM(setWeight) as totalSets, SUM(reps) as totalReps
+        FROM (
+            -- Основные мышцы: считаем как 1.0 подхода
+            SELECT mg.name as muscleGroup, 1.0 as setWeight, s.reps as reps
+            FROM sets s
+            INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
+            INNER JOIN workouts w ON we.workoutId = w.id
+            INNER JOIN exercises e ON we.exerciseId = e.id
+            INNER JOIN muscle_groups mg ON e.muscleGroupId = mg.id
+            WHERE w.date BETWEEN :startDate AND :endDate
+
+            UNION ALL
+
+            -- Синергисты: считаем как 0.5 подхода
+            SELECT mg.name as muscleGroup, 0.5 as setWeight, 0 as reps
+            FROM sets s
+            INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
+            INNER JOIN workouts w ON we.workoutId = w.id
+            INNER JOIN exercises e ON we.exerciseId = e.id
+            INNER JOIN muscle_groups mg ON e.synergistMuscleGroupId = mg.id
+            WHERE w.date BETWEEN :startDate AND :endDate
+              AND e.synergistMuscleGroupId IS NOT NULL
+        )
+        GROUP BY muscleGroup
         ORDER BY totalSets DESC
     """)
     suspend fun getStatsByMuscleGroup(startDate: String, endDate: String): List<MuscleGroupStats>
@@ -212,7 +230,7 @@ data class SetWithDate(
 
 data class MuscleGroupStats(
     val muscleGroup: String,
-    val totalSets: Int,
+    val totalSets: Double,  // Double для поддержки 0.5 подходов от синергистов
     val totalReps: Int
 )
 

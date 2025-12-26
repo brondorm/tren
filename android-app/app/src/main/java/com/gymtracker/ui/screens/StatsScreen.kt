@@ -59,6 +59,15 @@ fun StatsScreen(
     
     val totalSets = stats.sumOf { it.totalSets }
     val totalReps = stats.sumOf { it.totalReps }
+
+    // Форматирование дробных подходов
+    fun formatSets(sets: Double): String {
+        return if (sets == sets.toLong().toDouble()) {
+            sets.toLong().toString()
+        } else {
+            String.format("%.1f", sets)
+        }
+    }
     
     Scaffold(
         topBar = {
@@ -136,7 +145,7 @@ fun StatsScreen(
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        StatItem(label = "Подходов", value = totalSets.toString())
+                        StatItem(label = "Подходов", value = formatSets(totalSets))
                         StatItem(label = "Повторений", value = totalReps.toString())
                         StatItem(label = "Групп мышц", value = stats.size.toString())
                     }
@@ -152,7 +161,8 @@ fun StatsScreen(
                     items(stats) { stat ->
                         MuscleGroupStatCard(
                             stat = stat,
-                            maxSets = stats.maxOfOrNull { it.totalSets } ?: 1
+                            maxSets = stats.maxOfOrNull { it.totalSets } ?: 1.0,
+                            formatSets = ::formatSets
                         )
                     }
                 }
@@ -183,10 +193,11 @@ fun StatItem(
 @Composable
 fun MuscleGroupStatCard(
     stat: MuscleGroupStats,
-    maxSets: Int
+    maxSets: Double,
+    formatSets: (Double) -> String
 ) {
-    val progress = stat.totalSets.toFloat() / maxSets.toFloat()
-    
+    val progress = (stat.totalSets / maxSets).toFloat()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -203,14 +214,14 @@ fun MuscleGroupStatCard(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "${stat.totalSets} подх. / ${stat.totalReps} повт.",
+                    text = "${formatSets(stat.totalSets)} подх. / ${stat.totalReps} повт.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier
