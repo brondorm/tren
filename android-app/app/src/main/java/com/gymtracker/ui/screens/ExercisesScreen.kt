@@ -55,9 +55,11 @@ fun ExercisesScreen(
         ) {
             items(exercises) { exercise ->
                 val muscleGroup = exercise.muscleGroupId?.let { muscleGroupsMap[it] }
+                val synergist = exercise.synergistMuscleGroupId?.let { muscleGroupsMap[it] }
                 ExerciseItem(
                     exercise = exercise,
                     muscleGroup = muscleGroup,
+                    synergist = synergist,
                     onClick = { onNavigateToEdit(exercise.id) }
                 )
             }
@@ -81,6 +83,7 @@ fun ExercisesScreen(
 fun ExerciseItem(
     exercise: Exercise,
     muscleGroup: MuscleGroup?,
+    synergist: MuscleGroup? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -102,8 +105,13 @@ fun ExerciseItem(
                     style = MaterialTheme.typography.titleMedium
                 )
                 if (muscleGroup != null) {
+                    val muscleText = if (synergist != null) {
+                        "${muscleGroup.name} + ${synergist.name}"
+                    } else {
+                        muscleGroup.name
+                    }
                     Text(
-                        text = muscleGroup.name,
+                        text = muscleText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -134,11 +142,14 @@ fun AddExerciseDialog(
 ) {
     var name by remember { mutableStateOf("") }
     var selectedMuscleGroupId by remember { mutableStateOf<Long?>(null) }
-    var expanded by remember { mutableStateOf(false) }
+    var selectedSynergistId by remember { mutableStateOf<Long?>(null) }
+    var expandedMain by remember { mutableStateOf(false) }
+    var expandedSynergist by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    
+
     val selectedMuscleGroup = muscleGroups.find { it.id == selectedMuscleGroupId }
-    
+    val selectedSynergist = muscleGroups.find { it.id == selectedSynergistId }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Новое упражнение") },
@@ -151,37 +162,105 @@ fun AddExerciseDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
+                // Основная группа мышц
+                Text(
+                    "Основная мышца",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
                 ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it }
+                    expanded = expandedMain,
+                    onExpandedChange = { expandedMain = it }
                 ) {
                     OutlinedTextField(
                         value = selectedMuscleGroup?.name ?: "Выберите группу мышц",
                         onValueChange = {},
                         readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMain) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor()
                     )
-                    
+
                     ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        expanded = expandedMain,
+                        onDismissRequest = { expandedMain = false }
                     ) {
                         muscleGroups.forEach { mg ->
                             DropdownMenuItem(
-                                text = { 
+                                text = {
                                     Text(
                                         text = if (mg.parentId != null) "  ${mg.name}" else mg.name
-                                    ) 
+                                    )
                                 },
                                 onClick = {
                                     selectedMuscleGroupId = mg.id
-                                    expanded = false
+                                    expandedMain = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Синергист (опционально)
+                Text(
+                    "Синергист (опционально)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Text(
+                    "Вспомогательная мышца, считается как 0.5 подхода",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedSynergist,
+                    onExpandedChange = { expandedSynergist = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedSynergist?.name ?: "Не выбрано",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSynergist) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = expandedSynergist,
+                        onDismissRequest = { expandedSynergist = false }
+                    ) {
+                        // Опция "Не выбрано"
+                        DropdownMenuItem(
+                            text = { Text("Не выбрано") },
+                            onClick = {
+                                selectedSynergistId = null
+                                expandedSynergist = false
+                            }
+                        )
+
+                        HorizontalDivider()
+
+                        muscleGroups.forEach { mg ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = if (mg.parentId != null) "  ${mg.name}" else mg.name
+                                    )
+                                },
+                                onClick = {
+                                    selectedSynergistId = mg.id
+                                    expandedSynergist = false
                                 }
                             )
                         }
@@ -195,7 +274,11 @@ fun AddExerciseDialog(
                     if (name.isNotBlank()) {
                         scope.launch {
                             repository.insertExercise(
-                                Exercise(name = name, muscleGroupId = selectedMuscleGroupId)
+                                Exercise(
+                                    name = name,
+                                    muscleGroupId = selectedMuscleGroupId,
+                                    synergistMuscleGroupId = selectedSynergistId
+                                )
                             )
                             onDismiss()
                         }
@@ -223,25 +306,29 @@ fun EditExerciseScreen(
 ) {
     val scope = rememberCoroutineScope()
     val muscleGroups by repository.allMuscleGroups.collectAsState(initial = emptyList())
-    
+
     var exercise by remember { mutableStateOf<Exercise?>(null) }
     var name by remember { mutableStateOf("") }
     var selectedMuscleGroupId by remember { mutableStateOf<Long?>(null) }
-    var expanded by remember { mutableStateOf(false) }
+    var selectedSynergistId by remember { mutableStateOf<Long?>(null) }
+    var expandedMain by remember { mutableStateOf(false) }
+    var expandedSynergist by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    
+
     LaunchedEffect(exerciseId) {
         if (exerciseId > 0) {
             exercise = repository.getExerciseById(exerciseId)
             exercise?.let {
                 name = it.name
                 selectedMuscleGroupId = it.muscleGroupId
+                selectedSynergistId = it.synergistMuscleGroupId
             }
         }
     }
-    
+
     val selectedMuscleGroup = muscleGroups.find { it.id == selectedMuscleGroupId }
-    
+    val selectedSynergist = muscleGroups.find { it.id == selectedSynergistId }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -269,14 +356,16 @@ fun EditExerciseScreen(
                                         repository.updateExercise(
                                             exercise!!.copy(
                                                 name = name,
-                                                muscleGroupId = selectedMuscleGroupId
+                                                muscleGroupId = selectedMuscleGroupId,
+                                                synergistMuscleGroupId = selectedSynergistId
                                             )
                                         )
                                     } else {
                                         repository.insertExercise(
                                             Exercise(
                                                 name = name,
-                                                muscleGroupId = selectedMuscleGroupId
+                                                muscleGroupId = selectedMuscleGroupId,
+                                                synergistMuscleGroupId = selectedSynergistId
                                             )
                                         )
                                     }
@@ -304,60 +393,126 @@ fun EditExerciseScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
+            // Основная группа мышц
             Text(
-                "Группа мышц",
+                "Основная мышца",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.outline
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = it }
+                expanded = expandedMain,
+                onExpandedChange = { expandedMain = it }
             ) {
                 OutlinedTextField(
                     value = selectedMuscleGroup?.name ?: "Не выбрано",
                     onValueChange = {},
                     readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMain) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor()
                 )
-                
+
                 ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    expanded = expandedMain,
+                    onDismissRequest = { expandedMain = false }
                 ) {
                     // Опция "Не выбрано"
                     DropdownMenuItem(
                         text = { Text("Не выбрано") },
                         onClick = {
                             selectedMuscleGroupId = null
-                            expanded = false
+                            expandedMain = false
                         }
                     )
-                    
+
                     HorizontalDivider()
-                    
+
                     muscleGroups.forEach { mg ->
                         DropdownMenuItem(
-                            text = { 
+                            text = {
                                 Text(
                                     text = if (mg.parentId != null) "  ${mg.name}" else mg.name,
-                                    style = if (mg.parentId == null) 
-                                        MaterialTheme.typography.titleSmall 
-                                    else 
+                                    style = if (mg.parentId == null)
+                                        MaterialTheme.typography.titleSmall
+                                    else
                                         MaterialTheme.typography.bodyMedium
-                                ) 
+                                )
                             },
                             onClick = {
                                 selectedMuscleGroupId = mg.id
-                                expanded = false
+                                expandedMain = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Синергист (опционально)
+            Text(
+                "Синергист (опционально)",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Text(
+                "Вспомогательная мышца, считается как 0.5 подхода",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ExposedDropdownMenuBox(
+                expanded = expandedSynergist,
+                onExpandedChange = { expandedSynergist = it }
+            ) {
+                OutlinedTextField(
+                    value = selectedSynergist?.name ?: "Не выбрано",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSynergist) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expandedSynergist,
+                    onDismissRequest = { expandedSynergist = false }
+                ) {
+                    // Опция "Не выбрано"
+                    DropdownMenuItem(
+                        text = { Text("Не выбрано") },
+                        onClick = {
+                            selectedSynergistId = null
+                            expandedSynergist = false
+                        }
+                    )
+
+                    HorizontalDivider()
+
+                    muscleGroups.forEach { mg ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (mg.parentId != null) "  ${mg.name}" else mg.name,
+                                    style = if (mg.parentId == null)
+                                        MaterialTheme.typography.titleSmall
+                                    else
+                                        MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            onClick = {
+                                selectedSynergistId = mg.id
+                                expandedSynergist = false
                             }
                         )
                     }
@@ -365,7 +520,7 @@ fun EditExerciseScreen(
             }
         }
     }
-    
+
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },

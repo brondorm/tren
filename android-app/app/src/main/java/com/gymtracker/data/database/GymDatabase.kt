@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.gymtracker.data.model.*
 import kotlinx.coroutines.CoroutineScope
@@ -18,7 +19,7 @@ import kotlinx.coroutines.launch
         WorkoutExercise::class,
         ExerciseSet::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class GymDatabase : RoomDatabase() {
@@ -33,6 +34,36 @@ abstract class GymDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: GymDatabase? = null
 
+        /**
+         * Миграция с версии 1 на 2: добавляем поле synergistMuscleGroupId
+         * и автоматически проставляем синергисты для стандартных упражнений
+         */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Добавляем колонку synergistMuscleGroupId
+                db.execSQL("ALTER TABLE exercises ADD COLUMN synergistMuscleGroupId INTEGER DEFAULT NULL")
+
+                // Создаём индекс для новой колонки
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_exercises_synergistMuscleGroupId ON exercises(synergistMuscleGroupId)")
+
+                // Автоматически проставляем синергисты для известных упражнений
+                // Грудь -> Трицепс (15)
+                db.execSQL("UPDATE exercises SET synergistMuscleGroupId = 15 WHERE name IN ('Жим лежа', 'Жим в наклоне', 'Жим гантелей', 'Брусья')")
+
+                // Спина/Широчайшие -> Бицепс (14)
+                db.execSQL("UPDATE exercises SET synergistMuscleGroupId = 14 WHERE name IN ('Подтягивания', 'Тяга вертикальная', 'Тяга горизонтальная', 'Тяга гантели')")
+
+                // Жим стоя (плечи) -> Трицепс (15)
+                db.execSQL("UPDATE exercises SET synergistMuscleGroupId = 15 WHERE name = 'Жим стоя'")
+
+                // Присед и Жим ногами -> Бицепс бедра (11)
+                db.execSQL("UPDATE exercises SET synergistMuscleGroupId = 11 WHERE name IN ('Присед', 'Жим ногами')")
+
+                // Румынская тяга -> Квадрицепс (10)
+                db.execSQL("UPDATE exercises SET synergistMuscleGroupId = 10 WHERE name = 'Румынская тяга'")
+            }
+        }
+
         fun getDatabase(context: Context): GymDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -40,6 +71,7 @@ abstract class GymDatabase : RoomDatabase() {
                     GymDatabase::class.java,
                     "gym_database"
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance
@@ -80,38 +112,39 @@ abstract class GymDatabase : RoomDatabase() {
             )
             database.muscleGroupDao().insertAll(muscleGroups)
 
-            // Базовые упражнения
+            // Базовые упражнения с синергистами
+            // Трицепс = 15, Бицепс = 14, Квадрицепс = 10, Бицепс бедра = 11
             val exercises = listOf(
-                // Грудь
-                Exercise(name = "Жим лежа", muscleGroupId = 1),
-                Exercise(name = "Жим в наклоне", muscleGroupId = 1),
-                Exercise(name = "Жим гантелей", muscleGroupId = 1),
-                Exercise(name = "Брусья", muscleGroupId = 1),
-                
-                // Спина / Широчайшие
-                Exercise(name = "Подтягивания", muscleGroupId = 3),
-                Exercise(name = "Тяга вертикальная", muscleGroupId = 3),
-                Exercise(name = "Тяга горизонтальная", muscleGroupId = 3),
-                Exercise(name = "Тяга гантели", muscleGroupId = 3),
-                
+                // Грудь -> синергист Трицепс
+                Exercise(name = "Жим лежа", muscleGroupId = 1, synergistMuscleGroupId = 15),
+                Exercise(name = "Жим в наклоне", muscleGroupId = 1, synergistMuscleGroupId = 15),
+                Exercise(name = "Жим гантелей", muscleGroupId = 1, synergistMuscleGroupId = 15),
+                Exercise(name = "Брусья", muscleGroupId = 1, synergistMuscleGroupId = 15),
+
+                // Спина / Широчайшие -> синергист Бицепс
+                Exercise(name = "Подтягивания", muscleGroupId = 3, synergistMuscleGroupId = 14),
+                Exercise(name = "Тяга вертикальная", muscleGroupId = 3, synergistMuscleGroupId = 14),
+                Exercise(name = "Тяга горизонтальная", muscleGroupId = 3, synergistMuscleGroupId = 14),
+                Exercise(name = "Тяга гантели", muscleGroupId = 3, synergistMuscleGroupId = 14),
+
                 // Плечи
-                Exercise(name = "Махи в стороны", muscleGroupId = 7),
-                Exercise(name = "Жим стоя", muscleGroupId = 6),
-                Exercise(name = "Разводка назад", muscleGroupId = 8),
-                
+                Exercise(name = "Махи в стороны", muscleGroupId = 7), // изоляция, без синергиста
+                Exercise(name = "Жим стоя", muscleGroupId = 6, synergistMuscleGroupId = 15), // -> Трицепс
+                Exercise(name = "Разводка назад", muscleGroupId = 8), // изоляция, без синергиста
+
                 // Ноги
-                Exercise(name = "Присед", muscleGroupId = 10),
-                Exercise(name = "Жим ногами", muscleGroupId = 10),
-                Exercise(name = "Разгибания ног", muscleGroupId = 10),
-                Exercise(name = "Сгибания ног", muscleGroupId = 11),
-                Exercise(name = "Румынская тяга", muscleGroupId = 11),
-                Exercise(name = "Подъем на носки", muscleGroupId = 12),
-                
-                // Бицепс
+                Exercise(name = "Присед", muscleGroupId = 10, synergistMuscleGroupId = 11), // Квадр -> Бицепс бедра
+                Exercise(name = "Жим ногами", muscleGroupId = 10, synergistMuscleGroupId = 11),
+                Exercise(name = "Разгибания ног", muscleGroupId = 10), // изоляция
+                Exercise(name = "Сгибания ног", muscleGroupId = 11), // изоляция
+                Exercise(name = "Румынская тяга", muscleGroupId = 11, synergistMuscleGroupId = 10), // Бицепс бедра -> Квадр
+                Exercise(name = "Подъем на носки", muscleGroupId = 12), // изоляция
+
+                // Бицепс - изоляция
                 Exercise(name = "Подъем на бицепс", muscleGroupId = 14),
                 Exercise(name = "Молотки", muscleGroupId = 14),
-                
-                // Трицепс
+
+                // Трицепс - изоляция
                 Exercise(name = "Французский жим", muscleGroupId = 15),
                 Exercise(name = "Разгибания на трицепс", muscleGroupId = 15),
             )
