@@ -55,11 +55,13 @@ fun ExercisesScreen(
         ) {
             items(exercises) { exercise ->
                 val muscleGroup = exercise.muscleGroupId?.let { muscleGroupsMap[it] }
-                val synergist = exercise.synergistMuscleGroupId?.let { muscleGroupsMap[it] }
+                val synergist1 = exercise.synergistMuscleGroupId?.let { muscleGroupsMap[it] }
+                val synergist2 = exercise.synergistMuscleGroupId2?.let { muscleGroupsMap[it] }
                 ExerciseItem(
                     exercise = exercise,
                     muscleGroup = muscleGroup,
-                    synergist = synergist,
+                    synergist1 = synergist1,
+                    synergist2 = synergist2,
                     onClick = { onNavigateToEdit(exercise.id) }
                 )
             }
@@ -83,7 +85,8 @@ fun ExercisesScreen(
 fun ExerciseItem(
     exercise: Exercise,
     muscleGroup: MuscleGroup?,
-    synergist: MuscleGroup? = null,
+    synergist1: MuscleGroup? = null,
+    synergist2: MuscleGroup? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -105,8 +108,9 @@ fun ExerciseItem(
                     style = MaterialTheme.typography.titleMedium
                 )
                 if (muscleGroup != null) {
-                    val muscleText = if (synergist != null) {
-                        "${muscleGroup.name} + ${synergist.name}"
+                    val synergists = listOfNotNull(synergist1, synergist2)
+                    val muscleText = if (synergists.isNotEmpty()) {
+                        "${muscleGroup.name} + ${synergists.joinToString(", ") { it.name }}"
                     } else {
                         muscleGroup.name
                     }
@@ -143,12 +147,15 @@ fun AddExerciseDialog(
     var name by remember { mutableStateOf("") }
     var selectedMuscleGroupId by remember { mutableStateOf<Long?>(null) }
     var selectedSynergistId by remember { mutableStateOf<Long?>(null) }
+    var selectedSynergistId2 by remember { mutableStateOf<Long?>(null) }
     var expandedMain by remember { mutableStateOf(false) }
     var expandedSynergist by remember { mutableStateOf(false) }
+    var expandedSynergist2 by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val selectedMuscleGroup = muscleGroups.find { it.id == selectedMuscleGroupId }
     val selectedSynergist = muscleGroups.find { it.id == selectedSynergistId }
+    val selectedSynergist2 = muscleGroups.find { it.id == selectedSynergistId2 }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -209,9 +216,9 @@ fun AddExerciseDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Синергист (опционально)
+                // Синергист 1 (опционально)
                 Text(
-                    "Синергист (опционально)",
+                    "Синергист 1 (опционально)",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -266,6 +273,61 @@ fun AddExerciseDialog(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Синергист 2 (опционально)
+                Text(
+                    "Синергист 2 (опционально)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedSynergist2,
+                    onExpandedChange = { expandedSynergist2 = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedSynergist2?.name ?: "Не выбрано",
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSynergist2) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = expandedSynergist2,
+                        onDismissRequest = { expandedSynergist2 = false }
+                    ) {
+                        // Опция "Не выбрано"
+                        DropdownMenuItem(
+                            text = { Text("Не выбрано") },
+                            onClick = {
+                                selectedSynergistId2 = null
+                                expandedSynergist2 = false
+                            }
+                        )
+
+                        HorizontalDivider()
+
+                        muscleGroups.forEach { mg ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = if (mg.parentId != null) "  ${mg.name}" else mg.name
+                                    )
+                                },
+                                onClick = {
+                                    selectedSynergistId2 = mg.id
+                                    expandedSynergist2 = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -277,7 +339,8 @@ fun AddExerciseDialog(
                                 Exercise(
                                     name = name,
                                     muscleGroupId = selectedMuscleGroupId,
-                                    synergistMuscleGroupId = selectedSynergistId
+                                    synergistMuscleGroupId = selectedSynergistId,
+                                    synergistMuscleGroupId2 = selectedSynergistId2
                                 )
                             )
                             onDismiss()
@@ -311,8 +374,10 @@ fun EditExerciseScreen(
     var name by remember { mutableStateOf("") }
     var selectedMuscleGroupId by remember { mutableStateOf<Long?>(null) }
     var selectedSynergistId by remember { mutableStateOf<Long?>(null) }
+    var selectedSynergistId2 by remember { mutableStateOf<Long?>(null) }
     var expandedMain by remember { mutableStateOf(false) }
     var expandedSynergist by remember { mutableStateOf(false) }
+    var expandedSynergist2 by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(exerciseId) {
@@ -322,12 +387,14 @@ fun EditExerciseScreen(
                 name = it.name
                 selectedMuscleGroupId = it.muscleGroupId
                 selectedSynergistId = it.synergistMuscleGroupId
+                selectedSynergistId2 = it.synergistMuscleGroupId2
             }
         }
     }
 
     val selectedMuscleGroup = muscleGroups.find { it.id == selectedMuscleGroupId }
     val selectedSynergist = muscleGroups.find { it.id == selectedSynergistId }
+    val selectedSynergist2 = muscleGroups.find { it.id == selectedSynergistId2 }
 
     Scaffold(
         topBar = {
@@ -357,7 +424,8 @@ fun EditExerciseScreen(
                                             exercise!!.copy(
                                                 name = name,
                                                 muscleGroupId = selectedMuscleGroupId,
-                                                synergistMuscleGroupId = selectedSynergistId
+                                                synergistMuscleGroupId = selectedSynergistId,
+                                                synergistMuscleGroupId2 = selectedSynergistId2
                                             )
                                         )
                                     } else {
@@ -365,7 +433,8 @@ fun EditExerciseScreen(
                                             Exercise(
                                                 name = name,
                                                 muscleGroupId = selectedMuscleGroupId,
-                                                synergistMuscleGroupId = selectedSynergistId
+                                                synergistMuscleGroupId = selectedSynergistId,
+                                                synergistMuscleGroupId2 = selectedSynergistId2
                                             )
                                         )
                                     }
@@ -456,9 +525,9 @@ fun EditExerciseScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Синергист (опционально)
+            // Синергист 1 (опционально)
             Text(
-                "Синергист (опционально)",
+                "Синергист 1 (опционально)",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -513,6 +582,66 @@ fun EditExerciseScreen(
                             onClick = {
                                 selectedSynergistId = mg.id
                                 expandedSynergist = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Синергист 2 (опционально)
+            Text(
+                "Синергист 2 (опционально)",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            ExposedDropdownMenuBox(
+                expanded = expandedSynergist2,
+                onExpandedChange = { expandedSynergist2 = it }
+            ) {
+                OutlinedTextField(
+                    value = selectedSynergist2?.name ?: "Не выбрано",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSynergist2) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expandedSynergist2,
+                    onDismissRequest = { expandedSynergist2 = false }
+                ) {
+                    // Опция "Не выбрано"
+                    DropdownMenuItem(
+                        text = { Text("Не выбрано") },
+                        onClick = {
+                            selectedSynergistId2 = null
+                            expandedSynergist2 = false
+                        }
+                    )
+
+                    HorizontalDivider()
+
+                    muscleGroups.forEach { mg ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (mg.parentId != null) "  ${mg.name}" else mg.name,
+                                    style = if (mg.parentId == null)
+                                        MaterialTheme.typography.titleSmall
+                                    else
+                                        MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            onClick = {
+                                selectedSynergistId2 = mg.id
+                                expandedSynergist2 = false
                             }
                         )
                     }

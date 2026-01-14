@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
         WorkoutExercise::class,
         ExerciseSet::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class GymDatabase : RoomDatabase() {
@@ -64,6 +64,19 @@ abstract class GymDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Миграция с версии 2 на 3: добавляем второй синергист synergistMuscleGroupId2
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Добавляем колонку synergistMuscleGroupId2
+                db.execSQL("ALTER TABLE exercises ADD COLUMN synergistMuscleGroupId2 INTEGER DEFAULT NULL")
+
+                // Создаём индекс для новой колонки
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_exercises_synergistMuscleGroupId2 ON exercises(synergistMuscleGroupId2)")
+            }
+        }
+
         fun getDatabase(context: Context): GymDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -71,7 +84,7 @@ abstract class GymDatabase : RoomDatabase() {
                     GymDatabase::class.java,
                     "gym_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance

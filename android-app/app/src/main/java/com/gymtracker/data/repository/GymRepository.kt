@@ -5,6 +5,7 @@ import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.gymtracker.data.database.*
+import com.gymtracker.data.database.LastSetData
 import com.gymtracker.data.model.*
 import kotlinx.coroutines.flow.Flow
 import java.io.BufferedReader
@@ -107,6 +108,13 @@ class GymRepository(private val database: GymDatabase) {
     suspend fun updateSet(set: ExerciseSet) = database.exerciseSetDao().update(set)
     
     suspend fun deleteSet(set: ExerciseSet) = database.exerciseSetDao().delete(set)
+
+    /**
+     * Получает последние подходы для упражнения из предыдущей тренировки
+     * Используется для предзаполнения веса при добавлении упражнения
+     */
+    suspend fun getLastSetsForExercise(exerciseId: Long): List<LastSetData> =
+        database.statsDao().getLastSetsForExercise(exerciseId)
 
     // ===== Clear All Data =====
 
