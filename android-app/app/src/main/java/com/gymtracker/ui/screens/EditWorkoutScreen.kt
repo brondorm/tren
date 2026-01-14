@@ -212,13 +212,30 @@ fun EditWorkoutScreen(
     if (showExerciseDialog) {
         ExerciseSelectDialog(
             exercises = exercises,
+            repository = repository,
             onDismiss = { showExerciseDialog = false },
-            onSelect = { exercise ->
+            onSelect = { exercise, lastSets ->
                 showExerciseDialog = false
-                val newEntry = ExerciseEntryData(
-                    exercise = exercise,
-                    sets = mutableStateListOf(SetData(setNumber = 1))
-                )
+                val newEntry = if (lastSets.isNotEmpty()) {
+                    // Предзаполняем подходы из предыдущей тренировки
+                    val setDataList = lastSets.map { lastSet ->
+                        SetData(
+                            setNumber = lastSet.setNumber,
+                            weight = lastSet.weight.toString(),
+                            reps = lastSet.reps.toString(),
+                            note = lastSet.note ?: ""
+                        )
+                    }.toMutableList()
+                    ExerciseEntryData(
+                        exercise = exercise,
+                        sets = setDataList.toMutableStateList()
+                    )
+                } else {
+                    ExerciseEntryData(
+                        exercise = exercise,
+                        sets = mutableStateListOf(SetData(setNumber = 1))
+                    )
+                }
                 entries.add(newEntry)
             }
         )
@@ -257,9 +274,9 @@ fun ExerciseCard(
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Заголовки колонок
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -283,23 +300,24 @@ fun ExerciseCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline
                 )
-                Spacer(modifier = Modifier.width(40.dp))
+                Spacer(modifier = Modifier.width(80.dp)) // Место для кнопок
             }
-            
+
             Spacer(modifier = Modifier.height(4.dp))
-            
+
             // Подходы
             entry.sets.forEachIndexed { index, set ->
                 SetRow(
                     set = set,
                     onWeightChange = { entry.sets[index] = set.copy(weight = it) },
                     onRepsChange = { entry.sets[index] = set.copy(reps = it) },
+                    onNoteChange = { entry.sets[index] = set.copy(note = it) },
                     onRemove = { onRemoveSet(index) },
                     canRemove = entry.sets.size > 1
                 )
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            
+
             // Кнопка добавления подхода
             TextButton(
                 onClick = onAddSet,
@@ -318,48 +336,85 @@ fun SetRow(
     set: SetData,
     onWeightChange: (String) -> Unit,
     onRepsChange: (String) -> Unit,
+    onNoteChange: (String) -> Unit,
     onRemove: () -> Unit,
     canRemove: Boolean
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            "${set.setNumber}",
-            modifier = Modifier.width(32.dp),
-            style = MaterialTheme.typography.bodyMedium
-        )
-        
-        OutlinedTextField(
-            value = set.weight,
-            onValueChange = onWeightChange,
-            modifier = Modifier.weight(1f),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium
-        )
-        
-        OutlinedTextField(
-            value = set.reps,
-            onValueChange = onRepsChange,
-            modifier = Modifier.weight(1f),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium
-        )
-        
-        IconButton(
-            onClick = onRemove,
-            enabled = canRemove
+    var showNoteField by remember { mutableStateOf(set.note.isNotBlank()) }
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.Close,
-                contentDescription = "Удалить подход",
-                tint = if (canRemove) MaterialTheme.colorScheme.outline 
-                       else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+            Text(
+                "${set.setNumber}",
+                modifier = Modifier.width(32.dp),
+                style = MaterialTheme.typography.bodyMedium
             )
+
+            OutlinedTextField(
+                value = set.weight,
+                onValueChange = onWeightChange,
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium
+            )
+
+            OutlinedTextField(
+                value = set.reps,
+                onValueChange = onRepsChange,
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium
+            )
+
+            // Кнопка комментария
+            IconButton(
+                onClick = { showNoteField = !showNoteField }
+            ) {
+                Icon(
+                    if (set.note.isNotBlank()) Icons.Default.Edit else Icons.Default.Create,
+                    contentDescription = "Комментарий",
+                    tint = if (set.note.isNotBlank()) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            IconButton(
+                onClick = onRemove,
+                enabled = canRemove
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Удалить подход",
+                    tint = if (canRemove) MaterialTheme.colorScheme.outline
+                           else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                )
+            }
+        }
+
+        // Поле комментария (показывается при нажатии на иконку или если есть текст)
+        if (showNoteField) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 40.dp, top = 4.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = set.note,
+                    onValueChange = onNoteChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Комментарий к подходу...") },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }
@@ -368,15 +423,17 @@ fun SetRow(
 @Composable
 fun ExerciseSelectDialog(
     exercises: List<Exercise>,
+    repository: GymRepository,
     onDismiss: () -> Unit,
-    onSelect: (Exercise) -> Unit
+    onSelect: (Exercise, List<com.gymtracker.data.database.LastSetData>) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    
+    val scope = rememberCoroutineScope()
+
     val filteredExercises = exercises.filter {
         it.name.contains(searchQuery, ignoreCase = true)
     }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Выберите упражнение") },
@@ -390,9 +447,9 @@ fun ExerciseSelectDialog(
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Default.Search, null) }
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 LazyColumn(
                     modifier = Modifier.heightIn(max = 300.dp)
                 ) {
@@ -400,7 +457,12 @@ fun ExerciseSelectDialog(
                         val exercise = filteredExercises[index]
                         ListItem(
                             headlineContent = { Text(exercise.name) },
-                            modifier = Modifier.clickable { onSelect(exercise) }
+                            modifier = Modifier.clickable {
+                                scope.launch {
+                                    val lastSets = repository.getLastSetsForExercise(exercise.id)
+                                    onSelect(exercise, lastSets)
+                                }
+                            }
                         )
                         if (index < filteredExercises.size - 1) {
                             HorizontalDivider()

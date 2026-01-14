@@ -19,8 +19,8 @@ data class MuscleGroup(
 
 /**
  * Упражнение (Жим, Подтягивания и т.д.)
- * Привязано к группе мышц (основная + синергист)
- * synergistMuscleGroupId - вспомогательная мышца, считается как 0.5 подхода
+ * Привязано к группе мышц (основная + до 2 синергистов)
+ * synergistMuscleGroupId, synergistMuscleGroupId2 - вспомогательные мышцы, считаются как 0.5 подхода каждая
  */
 @Entity(
     tableName = "exercises",
@@ -36,16 +36,23 @@ data class MuscleGroup(
             parentColumns = ["id"],
             childColumns = ["synergistMuscleGroupId"],
             onDelete = ForeignKey.SET_NULL
+        ),
+        ForeignKey(
+            entity = MuscleGroup::class,
+            parentColumns = ["id"],
+            childColumns = ["synergistMuscleGroupId2"],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
-    indices = [Index("muscleGroupId"), Index("synergistMuscleGroupId")]
+    indices = [Index("muscleGroupId"), Index("synergistMuscleGroupId"), Index("synergistMuscleGroupId2")]
 )
 data class Exercise(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
     val muscleGroupId: Long? = null,
-    val synergistMuscleGroupId: Long? = null
+    val synergistMuscleGroupId: Long? = null,
+    val synergistMuscleGroupId2: Long? = null
 )
 
 /**

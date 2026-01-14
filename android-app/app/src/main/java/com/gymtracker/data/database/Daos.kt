@@ -161,7 +161,7 @@ interface ExerciseSetDao {
 interface StatsDao {
     /**
      * Получает суммарные подходы по группам мышц за период
-     * Учитывает синергисты как 0.5 подхода
+     * Учитывает синергисты как 0.5 подхода (оба синергиста)
      * Используется UNION ALL для объединения основных мышц и синергистов
      */
     @Query("""
@@ -178,7 +178,7 @@ interface StatsDao {
 
             UNION ALL
 
-            -- Синергисты: считаем как 0.5 подхода
+            -- Синергист 1: считаем как 0.5 подхода
             SELECT mg.name as muscleGroup, 0.5 as setWeight, 0 as reps
             FROM sets s
             INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
@@ -187,6 +187,18 @@ interface StatsDao {
             INNER JOIN muscle_groups mg ON e.synergistMuscleGroupId = mg.id
             WHERE w.date BETWEEN :startDate AND :endDate
               AND e.synergistMuscleGroupId IS NOT NULL
+
+            UNION ALL
+
+            -- Синергист 2: считаем как 0.5 подхода
+            SELECT mg.name as muscleGroup, 0.5 as setWeight, 0 as reps
+            FROM sets s
+            INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
+            INNER JOIN workouts w ON we.workoutId = w.id
+            INNER JOIN exercises e ON we.exerciseId = e.id
+            INNER JOIN muscle_groups mg ON e.synergistMuscleGroupId2 = mg.id
+            WHERE w.date BETWEEN :startDate AND :endDate
+              AND e.synergistMuscleGroupId2 IS NOT NULL
         )
         GROUP BY muscleGroup
         ORDER BY totalSets DESC
@@ -219,6 +231,21 @@ interface StatsDao {
         ORDER BY w.date
     """)
     suspend fun getExerciseSetsWithDatesInRange(exerciseId: Long, startDate: String, endDate: String): List<SetWithDate>
+
+    /**
+     * Получает последние подходы для упражнения из последней тренировки
+     * Используется для предзаполнения веса при добавлении упражнения в новую тренировку
+     */
+    @Query("""
+        SELECT s.setNumber, s.weight, s.reps, s.note
+        FROM sets s
+        INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
+        INNER JOIN workouts w ON we.workoutId = w.id
+        WHERE we.exerciseId = :exerciseId
+        ORDER BY w.date DESC, s.setNumber ASC
+        LIMIT 10
+    """)
+    suspend fun getLastSetsForExercise(exerciseId: Long): List<LastSetData>
 }
 
 // Data classes для результатов запросов
@@ -240,4 +267,11 @@ data class WeightProgress(
     val bestWeight: Double,
     val bestReps: Int,
     val estimated1RM: Double
+)
+
+data class LastSetData(
+    val setNumber: Int,
+    val weight: Double,
+    val reps: Int,
+    val note: String?
 )
