@@ -242,8 +242,13 @@ interface StatsDao {
         INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
         INNER JOIN workouts w ON we.workoutId = w.id
         WHERE we.exerciseId = :exerciseId
-        ORDER BY w.date DESC, s.setNumber ASC
-        LIMIT 10
+          AND w.date = (
+              SELECT MAX(w2.date)
+              FROM workout_exercises we2
+              INNER JOIN workouts w2 ON we2.workoutId = w2.id
+              WHERE we2.exerciseId = :exerciseId
+          )
+        ORDER BY s.setNumber ASC
     """)
     suspend fun getLastSetsForExercise(exerciseId: Long): List<LastSetData>
 }

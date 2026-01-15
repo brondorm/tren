@@ -5,7 +5,6 @@ import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.gymtracker.data.database.*
-import com.gymtracker.data.database.LastSetData
 import com.gymtracker.data.model.*
 import kotlinx.coroutines.flow.Flow
 import java.io.BufferedReader

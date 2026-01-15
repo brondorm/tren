@@ -66,13 +66,41 @@ abstract class GymDatabase : RoomDatabase() {
 
         /**
          * Миграция с версии 2 на 3: добавляем второй синергист synergistMuscleGroupId2
+         * SQLite не поддерживает добавление Foreign Key через ALTER TABLE,
+         * поэтому пересоздаём таблицу полностью
          */
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Добавляем колонку synergistMuscleGroupId2
-                db.execSQL("ALTER TABLE exercises ADD COLUMN synergistMuscleGroupId2 INTEGER DEFAULT NULL")
+                // 1. Создаём новую таблицу с правильной структурой
+                db.execSQL("""
+                    CREATE TABLE exercises_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        muscleGroupId INTEGER,
+                        synergistMuscleGroupId INTEGER,
+                        synergistMuscleGroupId2 INTEGER,
+                        FOREIGN KEY (muscleGroupId) REFERENCES muscle_groups(id) ON DELETE SET NULL,
+                        FOREIGN KEY (synergistMuscleGroupId) REFERENCES muscle_groups(id) ON DELETE SET NULL,
+                        FOREIGN KEY (synergistMuscleGroupId2) REFERENCES muscle_groups(id) ON DELETE SET NULL
+                    )
+                """)
 
-                // Создаём индекс для новой колонки
+                // 2. Копируем данные из старой таблицы
+                db.execSQL("""
+                    INSERT INTO exercises_new (id, name, muscleGroupId, synergistMuscleGroupId, synergistMuscleGroupId2)
+                    SELECT id, name, muscleGroupId, synergistMuscleGroupId, NULL
+                    FROM exercises
+                """)
+
+                // 3. Удаляем старую таблицу
+                db.execSQL("DROP TABLE exercises")
+
+                // 4. Переименовываем новую таблицу
+                db.execSQL("ALTER TABLE exercises_new RENAME TO exercises")
+
+                // 5. Создаём индексы
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_exercises_muscleGroupId ON exercises(muscleGroupId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_exercises_synergistMuscleGroupId ON exercises(synergistMuscleGroupId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_exercises_synergistMuscleGroupId2 ON exercises(synergistMuscleGroupId2)")
             }
         }
