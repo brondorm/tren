@@ -187,6 +187,28 @@ class GymRepository(private val database: GymDatabase) {
         if (reps <= 0) return weight
         return weight * (1.0 + reps.toDouble() / 30.0)
     }
+
+    /**
+     * Получает топ популярных упражнений с их прогрессом
+     */
+    suspend fun getTopPopularExercisesWithProgress(limit: Int = 5): List<PopularExerciseWithProgress> {
+        val popularExercises = database.statsDao().getTopPopularExercises(limit)
+
+        return popularExercises.map { popular ->
+            val progress = getWeightProgress(popular.exerciseId)
+            val lastWorkingWeight = progress.lastOrNull()?.bestWeight ?: 0.0
+            val last1RM = progress.lastOrNull()?.estimated1RM ?: 0.0
+
+            PopularExerciseWithProgress(
+                exerciseId = popular.exerciseId,
+                exerciseName = popular.exerciseName,
+                workoutCount = popular.workoutCount,
+                lastWorkingWeight = lastWorkingWeight,
+                last1RM = last1RM,
+                progressHistory = progress.takeLast(10) // Последние 10 точек для мини-графика
+            )
+        }
+    }
     
     // ===== Full Workout Data =====
     
@@ -365,4 +387,16 @@ data class FullExerciseEntry(
     val workoutExercise: WorkoutExercise,
     val exercise: Exercise?,
     val sets: List<ExerciseSet>
+)
+
+/**
+ * Популярное упражнение с данными прогресса для отображения на главном экране прогресса
+ */
+data class PopularExerciseWithProgress(
+    val exerciseId: Long,
+    val exerciseName: String,
+    val workoutCount: Int,
+    val lastWorkingWeight: Double,
+    val last1RM: Double,
+    val progressHistory: List<WeightProgress>
 )
