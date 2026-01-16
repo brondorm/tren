@@ -251,6 +251,20 @@ interface StatsDao {
         ORDER BY s.setNumber ASC
     """)
     suspend fun getLastSetsForExercise(exerciseId: Long): List<LastSetData>
+
+    /**
+     * Получает топ-N самых популярных упражнений по количеству тренировок
+     */
+    @Query("""
+        SELECT e.id as exerciseId, e.name as exerciseName, COUNT(DISTINCT w.id) as workoutCount
+        FROM exercises e
+        INNER JOIN workout_exercises we ON e.id = we.exerciseId
+        INNER JOIN workouts w ON we.workoutId = w.id
+        GROUP BY e.id
+        ORDER BY workoutCount DESC
+        LIMIT :limit
+    """)
+    suspend fun getTopPopularExercises(limit: Int): List<PopularExerciseData>
 }
 
 // Data classes для результатов запросов
@@ -279,4 +293,13 @@ data class LastSetData(
     val weight: Double,
     val reps: Int,
     val note: String?
+)
+
+/**
+ * Данные о популярности упражнения
+ */
+data class PopularExerciseData(
+    val exerciseId: Long,
+    val exerciseName: String,
+    val workoutCount: Int
 )
