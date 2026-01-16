@@ -209,6 +209,51 @@ class GymRepository(private val database: GymDatabase) {
             )
         }
     }
+
+    /**
+     * Проверяет, были ли побиты персональные рекорды в текущей тренировке
+     * @param date Дата тренировки
+     * @param entries Данные упражнений для сохранения (exerciseId -> sets)
+     * @return Список побитых рекордов
+     */
+    suspend fun checkForPersonalRecords(
+        date: String,
+        entries: List<Pair<Long, List<ExerciseSet>>>
+    ): List<PersonalRecord> {
+        val records = mutableListOf<PersonalRecord>()
+
+        for ((exerciseId, sets) in entries) {
+            // Находим лучший подход в текущей тренировке по формуле Эпли
+            val currentBest = sets.maxOfOrNull { set ->
+                calculateEpley1RM(set.weight, set.reps)
+            } ?: continue
+
+            // Получаем историю до текущей даты
+            val history = database.statsDao().getExerciseSetsBeforeDate(exerciseId, date)
+
+            // Находим предыдущий максимум
+            val previousMax = if (history.isEmpty()) {
+                0.0
+            } else {
+                history.maxOf { calculateEpley1RM(it.weight, it.reps) }
+            }
+
+            // Если текущий результат лучше предыдущего максимума - это рекорд!
+            if (currentBest > previousMax && previousMax > 0) {
+                val exercise = getExerciseById(exerciseId)
+                records.add(
+                    PersonalRecord(
+                        exerciseId = exerciseId,
+                        exerciseName = exercise?.name ?: "Упражнение",
+                        old1RM = previousMax,
+                        new1RM = currentBest
+                    )
+                )
+            }
+        }
+
+        return records
+    }
     
     // ===== Full Workout Data =====
     
@@ -399,4 +444,14 @@ data class PopularExerciseWithProgress(
     val lastWorkingWeight: Double,
     val last1RM: Double,
     val progressHistory: List<WeightProgress>
+)
+
+/**
+ * Информация о побитом персональном рекорде
+ */
+data class PersonalRecord(
+    val exerciseId: Long,
+    val exerciseName: String,
+    val old1RM: Double,
+    val new1RM: Double
 )
