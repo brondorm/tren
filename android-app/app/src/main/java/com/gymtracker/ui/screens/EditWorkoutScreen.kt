@@ -16,6 +16,9 @@ import androidx.compose.ui.unit.dp
 import com.gymtracker.data.model.Exercise
 import com.gymtracker.data.model.ExerciseSet
 import com.gymtracker.data.repository.GymRepository
+import com.gymtracker.data.repository.PersonalRecord
+import com.gymtracker.ui.components.RecordCelebration
+import com.gymtracker.ui.components.RecordInfo
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -44,12 +47,16 @@ fun EditWorkoutScreen(
 ) {
     val scope = rememberCoroutineScope()
     val exercises by repository.allExercises.collectAsState(initial = emptyList())
-    
+
     // Состояние тренировки
     val entries = remember { mutableStateListOf<ExerciseEntryData>() }
     var showExerciseDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
+
+    // Состояние для празднования рекордов
+    var showCelebration by remember { mutableStateOf(false) }
+    var personalRecords by remember { mutableStateOf<List<PersonalRecord>>(emptyList()) }
     
     // Загружаем существующую тренировку или позапрошлую (для системы тяни-толкай)
     LaunchedEffect(date) {
@@ -116,9 +123,21 @@ fun EditWorkoutScreen(
                             onClick = {
                                 scope.launch {
                                     isSaving = true
-                                    saveWorkout(repository, date, entries)
-                                    isSaving = false
-                                    onNavigateBack()
+                                    // Проверяем рекорды перед сохранением
+                                    val records = checkForRecords(repository, date, entries)
+                                    if (records.isNotEmpty()) {
+                                        personalRecords = records
+                                        // Сохраняем тренировку
+                                        saveWorkout(repository, date, entries)
+                                        isSaving = false
+                                        // Показываем празднование
+                                        showCelebration = true
+                                    } else {
+                                        // Просто сохраняем и выходим
+                                        saveWorkout(repository, date, entries)
+                                        isSaving = false
+                                        onNavigateBack()
+                                    }
                                 }
                             }
                         ) {
@@ -240,6 +259,23 @@ fun EditWorkoutScreen(
                     )
                 }
                 entries.add(newEntry)
+            }
+        )
+    }
+
+    // Показываем празднование рекорда
+    if (showCelebration && personalRecords.isNotEmpty()) {
+        RecordCelebration(
+            records = personalRecords.map { record ->
+                RecordInfo(
+                    exerciseName = record.exerciseName,
+                    old1RM = record.old1RM,
+                    new1RM = record.new1RM
+                )
+            },
+            onDismiss = {
+                showCelebration = false
+                onNavigateBack()
             }
         )
     }
@@ -540,4 +576,39 @@ private suspend fun saveWorkout(
 // Расширение для создания mutableStateList
 private fun <T> MutableList<T>.toMutableStateList(): MutableList<T> {
     return mutableStateListOf<T>().also { it.addAll(this) }
+}
+
+/**
+ * Проверяет, будут ли побиты персональные рекорды при сохранении тренировки
+ */
+private suspend fun checkForRecords(
+    repository: GymRepository,
+    date: String,
+    entries: List<ExerciseEntryData>
+): List<PersonalRecord> {
+    val dataToCheck = entries.mapNotNull { entry ->
+        val sets = entry.sets.mapNotNull { set ->
+            val weight = set.weight.toDoubleOrNull()
+            val reps = set.reps.toIntOrNull()
+            if (weight != null && reps != null && weight > 0 && reps > 0) {
+                ExerciseSet(
+                    workoutExerciseId = 0,
+                    setNumber = set.setNumber,
+                    weight = weight,
+                    reps = reps,
+                    note = set.note.ifBlank { null }
+                )
+            } else null
+        }
+
+        if (sets.isNotEmpty()) {
+            entry.exercise.id to sets
+        } else null
+    }
+
+    return if (dataToCheck.isNotEmpty()) {
+        repository.checkForPersonalRecords(date, dataToCheck)
+    } else {
+        emptyList()
+    }
 }

@@ -265,6 +265,21 @@ interface StatsDao {
         LIMIT :limit
     """)
     suspend fun getTopPopularExercises(limit: Int): List<PopularExerciseData>
+
+    /**
+     * Получает все подходы для упражнения ДО указанной даты
+     * Используется для проверки персональных рекордов
+     */
+    @Query("""
+        SELECT w.date, s.weight, s.reps
+        FROM sets s
+        INNER JOIN workout_exercises we ON s.workoutExerciseId = we.id
+        INNER JOIN workouts w ON we.workoutId = w.id
+        WHERE we.exerciseId = :exerciseId
+          AND w.date < :beforeDate
+        ORDER BY w.date
+    """)
+    suspend fun getExerciseSetsBeforeDate(exerciseId: Long, beforeDate: String): List<SetWithDate>
 }
 
 // Data classes для результатов запросов
