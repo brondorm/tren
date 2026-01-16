@@ -181,7 +181,10 @@ fun EditWorkoutScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                itemsIndexed(entries) { index, entry ->
+                itemsIndexed(
+                    items = entries,
+                    key = { _, entry -> entry.exercise.id }
+                ) { index, entry ->
                     ExerciseCard(
                         entry = entry,
                         onRemove = { entries.removeAt(index) },
@@ -340,7 +343,9 @@ fun SetRow(
     onRemove: () -> Unit,
     canRemove: Boolean
 ) {
-    var showNoteField by remember { mutableStateOf(set.note.isNotBlank()) }
+    // Показываем поле, только если явно раскрыто пользователем
+    var isNoteExpanded by remember { mutableStateOf(false) }
+    val hasNote = set.note.isNotBlank()
 
     Column {
         Row(
@@ -372,14 +377,14 @@ fun SetRow(
                 textStyle = MaterialTheme.typography.bodyMedium
             )
 
-            // Кнопка комментария
+            // Кнопка комментария - показывает/скрывает поле
             IconButton(
-                onClick = { showNoteField = !showNoteField }
+                onClick = { isNoteExpanded = !isNoteExpanded }
             ) {
                 Icon(
-                    if (set.note.isNotBlank()) Icons.Default.Edit else Icons.Default.Create,
+                    if (hasNote) Icons.Default.Edit else Icons.Default.Create,
                     contentDescription = "Комментарий",
-                    tint = if (set.note.isNotBlank()) MaterialTheme.colorScheme.primary
+                    tint = if (hasNote) MaterialTheme.colorScheme.primary
                            else MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(20.dp)
                 )
@@ -398,8 +403,8 @@ fun SetRow(
             }
         }
 
-        // Поле комментария (показывается при нажатии на иконку или если есть текст)
-        if (showNoteField) {
+        // Поле комментария
+        if (isNoteExpanded || hasNote) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -412,7 +417,24 @@ fun SetRow(
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Комментарий к подходу...") },
                     singleLine = true,
-                    textStyle = MaterialTheme.typography.bodySmall
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    trailingIcon = {
+                        if (hasNote) {
+                            IconButton(
+                                onClick = {
+                                    onNoteChange("")
+                                    isNoteExpanded = false
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = "Очистить комментарий",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
                 )
             }
         }
