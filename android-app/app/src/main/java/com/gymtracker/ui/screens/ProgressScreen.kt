@@ -1,18 +1,22 @@
 package com.gymtracker.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -113,9 +117,10 @@ fun ProgressScreen(
                         )
                     }
 
-                    items(popularExercises) { exerciseData ->
-                        PopularExerciseCard(
+                    itemsIndexed(popularExercises) { index, exerciseData ->
+                        AnimatedPopularExerciseCard(
                             exerciseData = exerciseData,
+                            index = index,
                             onClick = {
                                 // Находим упражнение и выбираем его
                                 val exercise = exercises.find { it.id == exerciseData.exerciseId }
@@ -249,6 +254,48 @@ fun ProgressScreen(
 }
 
 @Composable
+fun AnimatedPopularExerciseCard(
+    exerciseData: PopularExerciseWithProgress,
+    index: Int,
+    onClick: () -> Unit
+) {
+    // Анимация появления с задержкой (каскадный эффект)
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(exerciseData.exerciseId) {
+        delay(index * 80L) // Каскадная задержка
+        isVisible = true
+    }
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn(
+            animationSpec = tween(
+                durationMillis = 400,
+                easing = FastOutSlowInEasing
+            )
+        ) + slideInHorizontally(
+            animationSpec = tween(
+                durationMillis = 400,
+                easing = FastOutSlowInEasing
+            ),
+            initialOffsetX = { it / 3 }
+        ) + scaleIn(
+            animationSpec = tween(
+                durationMillis = 400,
+                easing = FastOutSlowInEasing
+            ),
+            initialScale = 0.9f
+        )
+    ) {
+        PopularExerciseCard(
+            exerciseData = exerciseData,
+            onClick = onClick
+        )
+    }
+}
+
+@Composable
 fun PopularExerciseCard(
     exerciseData: PopularExerciseWithProgress,
     onClick: () -> Unit
@@ -261,12 +308,37 @@ fun PopularExerciseCard(
         animationStarted = true
     }
 
+    // Scale анимация при нажатии
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "cardScale"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                        onClick()
+                    }
+                )
+            },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 6.dp
         )
     ) {
         Row(

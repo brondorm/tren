@@ -1,8 +1,10 @@
 package com.gymtracker.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,6 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.gymtracker.data.database.MuscleGroupStats
 import com.gymtracker.data.repository.GymRepository
+import com.gymtracker.ui.components.MuscleGroupIcon
+import com.gymtracker.ui.components.getMuscleGroupColor
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -158,9 +163,10 @@ fun StatsScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(stats) { stat ->
-                        MuscleGroupStatCard(
+                    itemsIndexed(stats) { index, stat ->
+                        AnimatedMuscleGroupStatCard(
                             stat = stat,
+                            index = index,
                             maxSets = stats.maxOfOrNull { it.totalSets } ?: 1.0,
                             formatSets = ::formatSets
                         )
@@ -191,44 +197,114 @@ fun StatItem(
 }
 
 @Composable
+fun AnimatedMuscleGroupStatCard(
+    stat: MuscleGroupStats,
+    index: Int,
+    maxSets: Double,
+    formatSets: (Double) -> String
+) {
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(stat.muscleGroup) {
+        delay(index * 60L)
+        isVisible = true
+    }
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn(
+            animationSpec = tween(300, easing = FastOutSlowInEasing)
+        ) + slideInHorizontally(
+            animationSpec = tween(300, easing = FastOutSlowInEasing),
+            initialOffsetX = { -it / 4 }
+        ) + scaleIn(
+            animationSpec = tween(300, easing = FastOutSlowInEasing),
+            initialScale = 0.9f
+        )
+    ) {
+        MuscleGroupStatCard(
+            stat = stat,
+            maxSets = maxSets,
+            formatSets = formatSets
+        )
+    }
+}
+
+@Composable
 fun MuscleGroupStatCard(
     stat: MuscleGroupStats,
     maxSets: Double,
     formatSets: (Double) -> String
 ) {
     val progress = (stat.totalSets / maxSets).toFloat()
+    val muscleColor = getMuscleGroupColor(stat.muscleGroup)
+
+    // Анимация прогресс-бара
+    var animatedProgress by remember { mutableStateOf(0f) }
+    LaunchedEffect(progress) {
+        animatedProgress = 0f
+        delay(100)
+        animatedProgress = progress
+    }
+    val animatedProgressValue by animateFloatAsState(
+        targetValue = animatedProgress,
+        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        label = "progress"
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            // Иконка группы мышц
+            MuscleGroupIcon(
+                muscleGroupName = stat.muscleGroup,
+                size = 48.dp,
+                iconSize = 28.dp
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stat.muscleGroup,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "${formatSets(stat.totalSets)} подх.",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = muscleColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Text(
-                    text = stat.muscleGroup,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "${formatSets(stat.totalSets)} подх. / ${stat.totalReps} повт.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "${stat.totalReps} повторений",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LinearProgressIndicator(
+                    progress = { animatedProgressValue },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp),
+                    color = muscleColor,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp),
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
         }
     }
 }

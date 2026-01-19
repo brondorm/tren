@@ -1,5 +1,8 @@
 package com.gymtracker.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -8,6 +11,45 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.gymtracker.data.repository.GymRepository
 import com.gymtracker.ui.screens.*
+
+// Общие настройки анимаций
+private const val ANIM_DURATION = 350
+
+private val enterTransition: AnimatedContentTransitionScope<*>.() -> EnterTransition = {
+    fadeIn(
+        animationSpec = tween(ANIM_DURATION, easing = FastOutSlowInEasing)
+    ) + slideInHorizontally(
+        animationSpec = tween(ANIM_DURATION, easing = FastOutSlowInEasing),
+        initialOffsetX = { it / 4 }
+    )
+}
+
+private val exitTransition: AnimatedContentTransitionScope<*>.() -> ExitTransition = {
+    fadeOut(
+        animationSpec = tween(ANIM_DURATION, easing = FastOutSlowInEasing)
+    ) + slideOutHorizontally(
+        animationSpec = tween(ANIM_DURATION, easing = FastOutSlowInEasing),
+        targetOffsetX = { -it / 4 }
+    )
+}
+
+private val popEnterTransition: AnimatedContentTransitionScope<*>.() -> EnterTransition = {
+    fadeIn(
+        animationSpec = tween(ANIM_DURATION, easing = FastOutSlowInEasing)
+    ) + slideInHorizontally(
+        animationSpec = tween(ANIM_DURATION, easing = FastOutSlowInEasing),
+        initialOffsetX = { -it / 4 }
+    )
+}
+
+private val popExitTransition: AnimatedContentTransitionScope<*>.() -> ExitTransition = {
+    fadeOut(
+        animationSpec = tween(ANIM_DURATION, easing = FastOutSlowInEasing)
+    ) + slideOutHorizontally(
+        animationSpec = tween(ANIM_DURATION, easing = FastOutSlowInEasing),
+        targetOffsetX = { it / 4 }
+    )
+}
 
 sealed class Screen(val route: String) {
     object Workouts : Screen("workouts")
@@ -33,7 +75,13 @@ fun AppNavigation(
         startDestination = Screen.Workouts.route
     ) {
         // Список тренировок
-        composable(Screen.Workouts.route) {
+        composable(
+            route = Screen.Workouts.route,
+            enterTransition = { fadeIn(animationSpec = tween(ANIM_DURATION)) },
+            exitTransition = exitTransition,
+            popEnterTransition = popEnterTransition,
+            popExitTransition = { fadeOut(animationSpec = tween(ANIM_DURATION)) }
+        ) {
             WorkoutsScreen(
                 repository = repository,
                 onNavigateToWorkout = { date ->
@@ -57,7 +105,11 @@ fun AppNavigation(
         // Редактирование тренировки
         composable(
             route = Screen.EditWorkout.route,
-            arguments = listOf(navArgument("date") { type = NavType.StringType })
+            arguments = listOf(navArgument("date") { type = NavType.StringType }),
+            enterTransition = enterTransition,
+            exitTransition = exitTransition,
+            popEnterTransition = popEnterTransition,
+            popExitTransition = popExitTransition
         ) { backStackEntry ->
             val date = backStackEntry.arguments?.getString("date") ?: return@composable
             EditWorkoutScreen(
@@ -68,7 +120,13 @@ fun AppNavigation(
         }
         
         // Справочник упражнений
-        composable(Screen.Exercises.route) {
+        composable(
+            route = Screen.Exercises.route,
+            enterTransition = enterTransition,
+            exitTransition = exitTransition,
+            popEnterTransition = popEnterTransition,
+            popExitTransition = popExitTransition
+        ) {
             ExercisesScreen(
                 repository = repository,
                 onNavigateToEdit = { exerciseId ->
@@ -81,7 +139,11 @@ fun AppNavigation(
         // Редактирование упражнения
         composable(
             route = Screen.EditExercise.route,
-            arguments = listOf(navArgument("exerciseId") { type = NavType.LongType })
+            arguments = listOf(navArgument("exerciseId") { type = NavType.LongType }),
+            enterTransition = enterTransition,
+            exitTransition = exitTransition,
+            popEnterTransition = popEnterTransition,
+            popExitTransition = popExitTransition
         ) { backStackEntry ->
             val exerciseId = backStackEntry.arguments?.getLong("exerciseId") ?: 0L
             EditExerciseScreen(
@@ -92,7 +154,13 @@ fun AppNavigation(
         }
         
         // Статистика по мышцам
-        composable(Screen.Stats.route) {
+        composable(
+            route = Screen.Stats.route,
+            enterTransition = enterTransition,
+            exitTransition = exitTransition,
+            popEnterTransition = popEnterTransition,
+            popExitTransition = popExitTransition
+        ) {
             StatsScreen(
                 repository = repository,
                 onNavigateBack = { navController.popBackStack() }
@@ -100,7 +168,13 @@ fun AppNavigation(
         }
         
         // Прогресс весов
-        composable(Screen.Progress.route) {
+        composable(
+            route = Screen.Progress.route,
+            enterTransition = enterTransition,
+            exitTransition = exitTransition,
+            popEnterTransition = popEnterTransition,
+            popExitTransition = popExitTransition
+        ) {
             ProgressScreen(
                 repository = repository,
                 onNavigateBack = { navController.popBackStack() }
@@ -108,7 +182,13 @@ fun AppNavigation(
         }
         
         // Настройки (импорт/экспорт)
-        composable(Screen.Settings.route) {
+        composable(
+            route = Screen.Settings.route,
+            enterTransition = enterTransition,
+            exitTransition = exitTransition,
+            popEnterTransition = popEnterTransition,
+            popExitTransition = popExitTransition
+        ) {
             SettingsScreen(
                 repository = repository,
                 onNavigateBack = { navController.popBackStack() }

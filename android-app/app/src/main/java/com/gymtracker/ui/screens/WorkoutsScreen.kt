@@ -1,19 +1,28 @@
 package com.gymtracker.ui.screens
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gymtracker.data.model.Workout
 import com.gymtracker.data.repository.GymRepository
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -111,9 +120,13 @@ fun WorkoutsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(workouts) { workout ->
-                    WorkoutCard(
+                itemsIndexed(
+                    items = workouts,
+                    key = { _, workout -> workout.id }
+                ) { index, workout ->
+                    AnimatedWorkoutCard(
                         workout = workout,
+                        index = index,
                         onClick = { onNavigateToWorkout(workout.date) }
                     )
                 }
@@ -133,18 +146,84 @@ fun WorkoutsScreen(
 }
 
 @Composable
+fun AnimatedWorkoutCard(
+    workout: Workout,
+    index: Int,
+    onClick: () -> Unit
+) {
+    // Анимация появления с задержкой (каскадный эффект)
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(workout.id) {
+        delay(index * 50L) // Каскадная задержка 50мс на каждую карточку
+        isVisible = true
+    }
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn(
+            animationSpec = tween(
+                durationMillis = 300,
+                easing = FastOutSlowInEasing
+            )
+        ) + slideInVertically(
+            animationSpec = tween(
+                durationMillis = 300,
+                easing = FastOutSlowInEasing
+            ),
+            initialOffsetY = { it / 2 }
+        ) + scaleIn(
+            animationSpec = tween(
+                durationMillis = 300,
+                easing = FastOutSlowInEasing
+            ),
+            initialScale = 0.92f
+        )
+    ) {
+        WorkoutCard(
+            workout = workout,
+            onClick = onClick
+        )
+    }
+}
+
+@Composable
 fun WorkoutCard(
     workout: Workout,
     onClick: () -> Unit
 ) {
     val date = LocalDate.parse(workout.date)
     val formatter = DateTimeFormatter.ofPattern("d MMMM yyyy, EEEE", Locale("ru"))
-    
+
+    // Scale анимация при нажатии
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "cardScale"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                        onClick()
+                    }
+                )
+            },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 8.dp
+        )
     ) {
         Row(
             modifier = Modifier
