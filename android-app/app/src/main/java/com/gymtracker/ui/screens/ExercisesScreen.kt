@@ -1,19 +1,26 @@
 package com.gymtracker.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.gymtracker.data.model.Exercise
 import com.gymtracker.data.model.MuscleGroup
 import com.gymtracker.data.repository.GymRepository
+import com.gymtracker.ui.components.MuscleGroupIconSmall
+import com.gymtracker.ui.components.getMuscleGroupColor
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,15 +60,19 @@ fun ExercisesScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(exercises) { exercise ->
+            itemsIndexed(
+                items = exercises,
+                key = { _, exercise -> exercise.id }
+            ) { index, exercise ->
                 val muscleGroup = exercise.muscleGroupId?.let { muscleGroupsMap[it] }
                 val synergist1 = exercise.synergistMuscleGroupId?.let { muscleGroupsMap[it] }
                 val synergist2 = exercise.synergistMuscleGroupId2?.let { muscleGroupsMap[it] }
-                ExerciseItem(
+                AnimatedExerciseItem(
                     exercise = exercise,
                     muscleGroup = muscleGroup,
                     synergist1 = synergist1,
                     synergist2 = synergist2,
+                    index = index,
                     onClick = { onNavigateToEdit(exercise.id) }
                 )
             }
@@ -82,6 +93,44 @@ fun ExercisesScreen(
 }
 
 @Composable
+fun AnimatedExerciseItem(
+    exercise: Exercise,
+    muscleGroup: MuscleGroup?,
+    synergist1: MuscleGroup? = null,
+    synergist2: MuscleGroup? = null,
+    index: Int,
+    onClick: () -> Unit
+) {
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(exercise.id) {
+        delay(index * 40L)
+        isVisible = true
+    }
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn(
+            animationSpec = tween(300, easing = FastOutSlowInEasing)
+        ) + slideInVertically(
+            animationSpec = tween(300, easing = FastOutSlowInEasing),
+            initialOffsetY = { it / 3 }
+        ) + scaleIn(
+            animationSpec = tween(300, easing = FastOutSlowInEasing),
+            initialScale = 0.92f
+        )
+    ) {
+        ExerciseItem(
+            exercise = exercise,
+            muscleGroup = muscleGroup,
+            synergist1 = synergist1,
+            synergist2 = synergist2,
+            onClick = onClick
+        )
+    }
+}
+
+@Composable
 fun ExerciseItem(
     exercise: Exercise,
     muscleGroup: MuscleGroup?,
@@ -89,19 +138,50 @@ fun ExerciseItem(
     synergist2: MuscleGroup? = null,
     onClick: () -> Unit
 ) {
+    // Scale анимация при нажатии
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "cardScale"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                        onClick()
+                    }
+                )
+            },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 6.dp
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Иконка группы мышц
+            if (muscleGroup != null) {
+                MuscleGroupIconSmall(muscleGroupName = muscleGroup.name)
+            } else {
+                MuscleGroupIconSmall(muscleGroupName = "")
+            }
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = exercise.name,
@@ -109,16 +189,25 @@ fun ExerciseItem(
                 )
                 if (muscleGroup != null) {
                     val synergists = listOfNotNull(synergist1, synergist2)
-                    val muscleText = if (synergists.isNotEmpty()) {
-                        "${muscleGroup.name} + ${synergists.joinToString(", ") { it.name }}"
-                    } else {
-                        muscleGroup.name
+                    val muscleColor = getMuscleGroupColor(muscleGroup.name)
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = muscleGroup.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = muscleColor
+                        )
+                        if (synergists.isNotEmpty()) {
+                            Text(
+                                text = "+ ${synergists.joinToString(", ") { it.name }}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
-                    Text(
-                        text = muscleText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
                 } else {
                     Text(
                         text = "Не привязано",
